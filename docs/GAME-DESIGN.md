@@ -4,7 +4,7 @@ Block Dodge is a portrait 2D mobile game. Hold the left or right side of the scr
 
 ## Journey
 
-Complete levels in order on a world map. One star is awarded for the required goal and unlocks the next level. Collect five gems for a second star and reach three ground checkpoints for a third. Gems and checkpoints appear one at a time. Replays retain the best result, including stars earned under earlier prototype rules.
+Complete levels in order on a world map. One star is awarded for the required goal and unlocks the next level. Collect five gems for a second star and reach three ground checkpoints for a third. Gems fall from above one at a time and are kept in a separate horizontal lane from active falling blocks. Missed gems return. New items appear after a short delay and gem and checkpoint appearances are staggered. Ground checkpoints appear one at a time. Gem and checkpoint counters are hidden during play and results are shown at the end. Replays retain the best result, including stars earned under earlier prototype rules.
 
 | World | Levels | Difficulty | Setting and mechanics |
 | --- | --- | --- | --- |

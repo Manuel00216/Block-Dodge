@@ -39,7 +39,6 @@ namespace BlockDodge
         private int levelIndex;
         private const int GemGoal = 5;
         private const int CheckpointGoal = 3;
-        private static readonly float[] GemPositions = { -1.5f, 0.9f, -0.8f, 1.8f, 0f };
         private static readonly float[] CheckpointPositions = { 1.8f, -1.4f, 1.4f };
         private int gemsCollected;
         private int checkpointsCollected;
@@ -50,6 +49,8 @@ namespace BlockDodge
         public const float PlayerY = -3.6f;
         private const float PlayerHalfWidth = 0.38f;
         private const float ArenaHalfWidth = 2.6f;
+        private const float GemBlockSeparation = 1.3f;
+        private const float GemFallSpeed = 4f;
         private readonly List<FallingBlock> blocks = new List<FallingBlock>();
         private State state;
         private Rigidbody2D playerBody;
@@ -64,6 +65,9 @@ namespace BlockDodge
         private GameObject pauseButton;
         private float horizontalVelocity;
         private float spawnTimer;
+        private float gemSpawnTimer;
+        private float checkpointSpawnTimer;
+        private float collectibleSpawnCooldown;
         private int score;
         private int controllingTouch = -1;
         private bool mouseControls;
@@ -294,7 +298,7 @@ namespace BlockDodge
             pauseButton.SetActive(false);
             scoreText.gameObject.SetActive(true);
             bonusText.gameObject.SetActive(true);
-            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: collect 5 gems\nand reach 3 checkpoints.", "PLAY", StartRun, "MAP", ShowMap);
+            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nCatch 5 falling gems\nand reach 3 checkpoints.", "PLAY", StartRun, "MAP", ShowMap);
             UpdateScore();
         }
 
@@ -305,13 +309,15 @@ namespace BlockDodge
             blocks.Clear();
             score = 0; gemsCollected = 0; checkpointsCollected = 0; waveNumber = 0;
             ClearCollectibles();
-            SpawnGem();
-            SpawnCheckpoint();
+            gemSpawnTimer = 1.5f;
+            checkpointSpawnTimer = 4f;
+            collectibleSpawnCooldown = 0f;
             UpdateScore();
             playerBody.position = new Vector2(0, PlayerY);
             horizontalVelocity = 0; spawnTimer = 1f;
             ClearInput();
             state = State.Playing;
+            bonusText.gameObject.SetActive(false);
             overlay.SetActive(false); pauseButton.SetActive(true);
         }
 
@@ -326,6 +332,26 @@ namespace BlockDodge
                 SpawnBlock();
                 spawnTimer = levels[levelIndex].spawnInterval;
             }
+            collectibleSpawnCooldown = Mathf.Max(0f, collectibleSpawnCooldown - Time.deltaTime);
+            if (gem == null && gemsCollected < GemGoal)
+            {
+                gemSpawnTimer -= Time.deltaTime;
+                if (gemSpawnTimer <= 0f && collectibleSpawnCooldown <= 0f)
+                {
+                    TrySpawnGem();
+                    gemSpawnTimer = 0.3f;
+                    if (gem != null) collectibleSpawnCooldown = 1f;
+                }
+            }
+            if (checkpoint == null && checkpointsCollected < CheckpointGoal)
+            {
+                checkpointSpawnTimer -= Time.deltaTime;
+                if (checkpointSpawnTimer <= 0f && collectibleSpawnCooldown <= 0f)
+                {
+                    SpawnCheckpoint();
+                    collectibleSpawnCooldown = 1f;
+                }
+            }
         }
 
         private void FixedUpdate()
@@ -334,13 +360,53 @@ namespace BlockDodge
             horizontalVelocity = Mathf.MoveTowards(horizontalVelocity, moveDirection * 5f, 35f * Time.fixedDeltaTime);
             float x = Mathf.Clamp(playerBody.position.x + horizontalVelocity * Time.fixedDeltaTime, -ArenaHalfWidth + PlayerHalfWidth, ArenaHalfWidth - PlayerHalfWidth);
             playerBody.MovePosition(new Vector2(x, PlayerY));
-            CollectItems(x);
+            MoveGem(x);
+            CollectCheckpoint(x);
         }
 
-        private void SpawnGem()
+        private void TrySpawnGem()
         {
-            gem = MakeSprite("Gem", new Vector2(GemPositions[gemsCollected], PlayerY + 0.20f), new Vector2(0.60f, 0.60f), new Color(1f, 0.80f, 0.08f), 3);
-            gem.GetComponent<SpriteRenderer>().sprite = gemSprite;
+            int start = Random.Range(0, 22);
+            for (int i = 0; i < 22; i++)
+            {
+                float x = -2.1f + ((start + i) % 22) * 0.2f;
+                bool clear = true;
+                foreach (var block in blocks)
+                {
+                    if (block != null && Mathf.Abs(block.transform.position.x - x) < GemBlockSeparation)
+                    {
+                        clear = false;
+                        break;
+                    }
+                }
+                if (!clear) continue;
+                gem = MakeSprite("Gem", new Vector2(x, 6.6f), new Vector2(0.60f, 0.60f), new Color(1f, 0.80f, 0.08f), 3);
+                gem.GetComponent<SpriteRenderer>().sprite = gemSprite;
+                return;
+            }
+        }
+
+        private void MoveGem(float playerX)
+        {
+            if (gem == null) return;
+            Vector3 position = gem.transform.position;
+            float nextY = position.y - GemFallSpeed * Time.fixedDeltaTime;
+            gem.transform.position = new Vector3(position.x, nextY, position.z);
+            bool atPlayerHeight = nextY <= PlayerY + 0.68f && position.y >= PlayerY - 0.68f;
+            if (atPlayerHeight && Mathf.Abs(playerX - position.x) <= 0.68f)
+            {
+                Destroy(gem);
+                gem = null;
+                gemsCollected++;
+                gemSpawnTimer = 2.5f;
+                UpdateScore();
+            }
+            else if (nextY < PlayerY - 0.68f)
+            {
+                Destroy(gem);
+                gem = null;
+                gemSpawnTimer = 1.5f;
+            }
         }
 
         private void SpawnCheckpoint()
@@ -357,24 +423,14 @@ namespace BlockDodge
             checkpoint = null;
         }
 
-        private void CollectItems(float playerX)
+        private void CollectCheckpoint(float playerX)
         {
-            if (gem != null && Mathf.Abs(playerX - gem.transform.position.x) <= 0.52f)
-            {
-                Destroy(gem);
-                gem = null;
-                gemsCollected++;
-                if (gemsCollected < GemGoal) SpawnGem();
-                UpdateScore();
-            }
-            if (checkpoint != null && Mathf.Abs(playerX - checkpoint.transform.position.x) <= 0.52f)
-            {
-                Destroy(checkpoint);
-                checkpoint = null;
-                checkpointsCollected++;
-                if (checkpointsCollected < CheckpointGoal) SpawnCheckpoint();
-                UpdateScore();
-            }
+            if (checkpoint == null || Mathf.Abs(playerX - checkpoint.transform.position.x) > 0.52f) return;
+            Destroy(checkpoint);
+            checkpoint = null;
+            checkpointsCollected++;
+            checkpointSpawnTimer = 3f;
+            UpdateScore();
         }
 
         private void ReadInput()
@@ -423,12 +479,17 @@ namespace BlockDodge
             }
             else
             {
-                CreateBlock(Random.Range(-levels[levelIndex].spawnRange, levels[levelIndex].spawnRange));
+                float range = levels[levelIndex].spawnRange;
+                float x = Random.Range(-range, range);
+                if (gem != null && Mathf.Abs(gem.transform.position.x - x) < GemBlockSeparation)
+                    x = gem.transform.position.x >= 0 ? -range : range;
+                CreateBlock(x);
             }
         }
 
         private void CreateBlock(float x)
         {
+            if (gem != null && Mathf.Abs(gem.transform.position.x - x) < GemBlockSeparation) return;
             var obj = MakeSprite("Block", new Vector2(x, 6.6f), new Vector2(0.85f, 0.85f), new Color(0.54f, 0.30f, 0.16f), 1);
             var body = obj.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Kinematic;
