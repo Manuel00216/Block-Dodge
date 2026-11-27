@@ -4,7 +4,7 @@ Block Dodge is a portrait 2D mobile game. Hold the left or right side of the scr
 
 ## Journey
 
-Complete levels in order on a world map. One star is awarded for the required goal and unlocks the next level. Collect five gems for a second star and reach three ground checkpoints for a third. Gems fall from above one at a time and are kept in a separate horizontal lane from active falling blocks. Missed gems return. New items appear after a short delay and gem and checkpoint appearances are staggered. Ground checkpoints appear one at a time. Gem and checkpoint counters are hidden during play and results are shown at the end. Replays retain the best result, including stars earned under earlier prototype rules.
+Complete levels in order on a world map. One star is awarded for the required goal and unlocks the next level. Collect five gems for a second star and reach three ground checkpoints for a third. Gems fall from above one at a time and are kept in a separate horizontal lane from active falling blocks. A conservative route search checks obstacle patterns and collectible placements against the player’s current position and falling blocks. Missed gems return. New items appear after a short delay and gem and checkpoint appearances are staggered. Ground checkpoints appear one at a time. Gem and checkpoint counters are hidden during play and results are shown at the end. Replays retain the best result, including stars earned under earlier prototype rules.
 
 | World | Levels | Difficulty | Setting and mechanics |
 | --- | --- | --- | --- |
@@ -22,3 +22,5 @@ Unlock after the first few Jungle levels. Difficulty choices have separate local
 ## Presentation and settings
 
 Use original character and obstacle artwork. Provide pause, quick retry, music, effects and vibration settings. Cosmetics unlocked by stars or milestones use consistent collision dimensions. Detailed goals and character design remain open.
+
+Checkpoint rings pulse gently. The route search is an approximation and requires playtesting across devices; it does not guarantee safety for every player action.

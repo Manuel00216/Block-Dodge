@@ -1,6 +1,6 @@
 # Level design
 
-The first five Jungle levels are planned for the first playable milestone. Targets below are prototypes and need playtesting. Current bonus goals are to collect five gems and reach three ground checkpoints. Falling gems and ground checkpoints appear one at a time with staggered timing. Both need device playtesting and safe-route tuning.
+The first five Jungle levels are planned for the first playable milestone. Targets below are prototypes and need playtesting. Current bonus goals are to collect five gems and reach three ground checkpoints. Falling gems and ground checkpoints appear one at a time with staggered timing. A conservative route search screens their placement, and both need device playtesting and route tuning.
 
 | Level | World | Initial goal | Introduction | Status |
 | --- | --- | --- | --- | --- |

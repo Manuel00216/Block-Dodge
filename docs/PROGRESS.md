@@ -35,8 +35,12 @@ Phase 4 — Jungle map and local best-star progression implemented; broader devi
 
 2026-11-27 — Installed the regular map build on the realme phone after the one-time progress restoration. The Android build succeeded through the offline build script. Close-dodge proximity and the in-game confirmation were verified in the Editor. Full device playtesting of star criteria and other screen sizes remains.
 
-2026-11-27 — Replaced the edge and close-dodge bonus goals with five gems and three checkpoints. Editor checks verified collection counters, three-star and two-star awards, and preservation of a previous best score. Items remain until collected, but obstacle placement does not yet guarantee a safe path to every item. Android device testing remains pending.
+2026-11-27 — Replaced the edge and close-dodge bonus goals with five gems and three checkpoints. Editor checks verified collection counters, three-star and two-star awards, and preservation of a previous best score. Items remain until collected, but at that point, obstacle placement did not check paths to items. Android device testing remains pending.
 
 2026-11-27 — Gems now fall, stay horizontally separated from active blocks, and respawn if missed. The gem and checkpoint counters are hidden during gameplay at the user’s request; the results retain both counts. Editor checks verified height-sensitive collection, respawn eligibility and separation from spawned blocks. Checkpoint placement and overall safe routes still need device playtesting.
 
 2026-11-27 — Gems fall in lanes separated from active blocks and are collected at player height; missed gems can return. Gem and checkpoint counters are hidden during play. New collectibles have delays after collection and their appearances are staggered. Editor checks verified lane separation, height-sensitive collection, hidden counters and post-collection delays. On the realme phone, the user confirmed the gem and ring timing felt good; broader phone testing remains.
+
+2026-11-27 — Added a conservative time-and-position route search for new block patterns and reachable gem/checkpoint placements, plus a gentle checkpoint pulse. Editor checks rejected a full-width barrier and accepted open routes. The search is an approximation; longer playtests, difficulty tuning, performance checks and more devices are still needed.
+
+2026-11-27 — Installed route-search and pulsing-checkpoint update on the realme phone. The user reported the update felt smooth and gave them time to dodge. The user also confirmed earning three stars by completing a level with five gems and three checkpoints. Broader device and longer-session testing remain.

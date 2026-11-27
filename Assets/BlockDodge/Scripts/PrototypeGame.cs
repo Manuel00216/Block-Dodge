@@ -51,6 +51,9 @@ namespace BlockDodge
         private const float ArenaHalfWidth = 2.6f;
         private const float GemBlockSeparation = 1.3f;
         private const float GemFallSpeed = 4f;
+        private const int SafetyCells = 33;
+        private const float SafetyStep = 0.1f;
+        private const int SafetySteps = 45;
         private readonly List<FallingBlock> blocks = new List<FallingBlock>();
         private State state;
         private Rigidbody2D playerBody;
@@ -326,6 +329,11 @@ namespace BlockDodge
             if (safeArea != null && (Screen.safeArea != lastSafeArea || lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height)) UpdateSafeArea();
             if (state != State.Playing) return;
             ReadInput();
+            if (checkpoint != null)
+            {
+                float pulse = 1f + 0.08f * Mathf.Sin(Time.time * 4f);
+                checkpoint.transform.localScale = new Vector3(0.85f * pulse, 0.45f * pulse, 1f);
+            }
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0)
             {
@@ -348,8 +356,9 @@ namespace BlockDodge
                 checkpointSpawnTimer -= Time.deltaTime;
                 if (checkpointSpawnTimer <= 0f && collectibleSpawnCooldown <= 0f)
                 {
-                    SpawnCheckpoint();
-                    collectibleSpawnCooldown = 1f;
+                    TrySpawnCheckpoint();
+                    checkpointSpawnTimer = 0.4f;
+                    if (checkpoint != null) collectibleSpawnCooldown = 1f;
                 }
             }
         }
@@ -379,7 +388,7 @@ namespace BlockDodge
                         break;
                     }
                 }
-                if (!clear) continue;
+                if (!clear || !HasSafeRoute(float.NaN, float.NaN, x, 2.4f, 2.7f, 0.5f)) continue;
                 gem = MakeSprite("Gem", new Vector2(x, 6.6f), new Vector2(0.60f, 0.60f), new Color(1f, 0.80f, 0.08f), 3);
                 gem.GetComponent<SpriteRenderer>().sprite = gemSprite;
                 return;
@@ -409,10 +418,17 @@ namespace BlockDodge
             }
         }
 
-        private void SpawnCheckpoint()
+        private void TrySpawnCheckpoint()
         {
-            checkpoint = MakeSprite("Checkpoint", new Vector2(CheckpointPositions[checkpointsCollected], -3.95f), new Vector2(0.85f, 0.45f), new Color(0.12f, 0.62f, 1f), 1);
-            checkpoint.GetComponent<SpriteRenderer>().sprite = checkpointSprite;
+            for (int i = 0; i < CheckpointPositions.Length; i++)
+            {
+                float x = CheckpointPositions[(checkpointsCollected + i) % CheckpointPositions.Length];
+                if (Mathf.Abs(x - playerBody.position.x) < 0.65f) continue;
+                if (!HasSafeRoute(float.NaN, float.NaN, x, 0.4f, 3.8f, 0.42f)) continue;
+                checkpoint = MakeSprite("Checkpoint", new Vector2(x, -3.95f), new Vector2(0.85f, 0.45f), new Color(0.12f, 0.62f, 1f), 1);
+                checkpoint.GetComponent<SpriteRenderer>().sprite = checkpointSprite;
+                return;
+            }
         }
 
         private void ClearCollectibles()
@@ -472,19 +488,96 @@ namespace BlockDodge
         private void SpawnBlock()
         {
             waveNumber++;
-            if (levelIndex >= 2 && waveNumber % 4 == 0)
+            if (levelIndex >= 2 && waveNumber % 4 == 0 && CanSpawnPattern(-1.5f, 1.5f))
             {
                 CreateBlock(-1.5f);
                 CreateBlock(1.5f);
+                return;
             }
-            else
+
+            float range = levels[levelIndex].spawnRange;
+            float start = Random.Range(0f, 1f);
+            for (int i = 0; i < 16; i++)
             {
-                float range = levels[levelIndex].spawnRange;
-                float x = Random.Range(-range, range);
-                if (gem != null && Mathf.Abs(gem.transform.position.x - x) < GemBlockSeparation)
-                    x = gem.transform.position.x >= 0 ? -range : range;
+                float fraction = Mathf.Repeat(start + i / 16f, 1f);
+                float x = Mathf.Lerp(-range, range, fraction);
+                if (!CanSpawnPattern(x, float.NaN)) continue;
                 CreateBlock(x);
+                return;
             }
+        }
+
+        private bool CanSpawnPattern(float first, float second)
+        {
+            if (gem != null && (Mathf.Abs(gem.transform.position.x - first) < GemBlockSeparation ||
+                (!float.IsNaN(second) && Mathf.Abs(gem.transform.position.x - second) < GemBlockSeparation))) return false;
+            if (!HasSafeRoute(first, second, float.NaN, 0f, 0f, 0f)) return false;
+
+            if (gem != null)
+            {
+                float time = (gem.transform.position.y - PlayerY) / GemFallSpeed;
+                if (time > 0.2f && !HasSafeRoute(first, second, gem.transform.position.x,
+                    Mathf.Max(0.2f, time - 0.12f), time + 0.12f, 0.5f)) return false;
+            }
+            if (checkpoint != null && !HasSafeRoute(first, second, checkpoint.transform.position.x,
+                0.4f, 3.8f, 0.42f)) return false;
+            return true;
+        }
+
+        // Search conservative positions through time, including obstacles already in flight.
+        private bool HasSafeRoute(float first, float second, float goal, float goalStart, float goalEnd, float goalRadius)
+        {
+            bool hasGoal = !float.IsNaN(goal);
+            float limit = ArenaHalfWidth - PlayerHalfWidth;
+            float spacing = 2f * limit / (SafetyCells - 1);
+            var reachable = new bool[SafetyCells, 2];
+            var next = new bool[SafetyCells, 2];
+            int initial = Mathf.Clamp(Mathf.RoundToInt((playerBody.position.x + limit) / spacing), 0, SafetyCells - 1);
+            reachable[initial, hasGoal ? 0 : 1] = true;
+
+            for (int step = 1; step <= SafetySteps; step++)
+            {
+                System.Array.Clear(next, 0, next.Length);
+                float time = step * SafetyStep;
+                for (int cell = 0; cell < SafetyCells; cell++)
+                {
+                    float x = -limit + cell * spacing;
+                    if (IsHazardAt(x, time, first, second)) continue;
+                    bool touchesGoal = hasGoal && time >= goalStart && time <= goalEnd && Mathf.Abs(x - goal) <= goalRadius;
+                    int reach = step <= 2 ? 0 : 2;
+                    for (int previous = Mathf.Max(0, cell - reach); previous <= Mathf.Min(SafetyCells - 1, cell + reach); previous++)
+                    {
+                        if (reachable[previous, 1]) next[cell, 1] = true;
+                        if (reachable[previous, 0]) next[cell, touchesGoal ? 1 : 0] = true;
+                    }
+                }
+                var swap = reachable;
+                reachable = next;
+                next = swap;
+            }
+
+            for (int cell = 0; cell < SafetyCells; cell++)
+                if (reachable[cell, 1]) return true;
+            return false;
+        }
+
+        private bool IsHazardAt(float playerX, float time, float first, float second)
+        {
+            foreach (var block in blocks)
+            {
+                if (block != null && HazardIntersects(playerX, time, block.transform.position.x,
+                    block.transform.position.y, block.Speed)) return true;
+            }
+            float speed = levels[levelIndex].blockSpeed;
+            return (!float.IsNaN(first) && HazardIntersects(playerX, time, first, 6.6f, speed)) ||
+                (!float.IsNaN(second) && HazardIntersects(playerX, time, second, 6.6f, speed));
+        }
+
+        private static bool HazardIntersects(float playerX, float time, float blockX, float blockY, float speed)
+        {
+            float predictedY = blockY - speed * time;
+            return Mathf.Abs(predictedY - PlayerY) < 0.805f + speed * SafetyStep &&
+                Mathf.Abs(blockX - playerX) < 0.96f;
         }
 
         private void CreateBlock(float x)
@@ -572,6 +665,7 @@ namespace BlockDodge
         private Rigidbody2D body;
         private bool scored;
         private float speed;
+        public float Speed => speed;
         public void Initialize(PrototypeGame owner, Rigidbody2D rigidbody, float fallSpeed) { game = owner; body = rigidbody; speed = fallSpeed; }
         private void FixedUpdate()
         {
