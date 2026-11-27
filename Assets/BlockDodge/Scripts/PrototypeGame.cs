@@ -10,7 +10,7 @@ namespace BlockDodge
 {
     public sealed class PrototypeGame : MonoBehaviour
     {
-        private enum State { Ready, Playing, Paused, GameOver, Complete }
+        private enum State { Map, Ready, Playing, Paused, GameOver, Complete }
 
         [System.Serializable]
         private sealed class LevelDefinition
@@ -43,7 +43,7 @@ namespace BlockDodge
         private RectTransform safeArea;
         private Rect lastSafeArea;
         private Vector2Int lastScreenSize;
-        private const float PlayerY = -3.6f;
+        public const float PlayerY = -3.6f;
         private const float PlayerHalfWidth = 0.38f;
         private const float ArenaHalfWidth = 2.6f;
         private readonly List<FallingBlock> blocks = new List<FallingBlock>();
@@ -51,6 +51,8 @@ namespace BlockDodge
         private Rigidbody2D playerBody;
         private Sprite square;
         private TextMeshProUGUI scoreText;
+        private TextMeshProUGUI bonusText;
+        private float bonusMessageTime;
         private GameObject overlay;
         private GameObject pauseButton;
         private float horizontalVelocity;
@@ -67,7 +69,7 @@ namespace BlockDodge
             square = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
             SetupWorld();
             SetupUI();
-            ShowReady();
+            ShowMap();
         }
 
         private void SetupWorld()
@@ -127,6 +129,9 @@ namespace BlockDodge
             scoreText = MakeText(root, "Score", "DODGED  0", 52, new Vector2(0.06f, 0.88f), new Vector2(0.74f, 0.97f));
             scoreText.alignment = TextAlignmentOptions.MidlineLeft;
             scoreText.color = new Color(0.06f, 0.24f, 0.16f);
+            bonusText = MakeText(root, "Bonus", "", 34, new Vector2(0.06f, 0.81f), new Vector2(0.74f, 0.88f));
+            bonusText.alignment = TextAlignmentOptions.MidlineLeft;
+            bonusText.color = new Color(0.06f, 0.24f, 0.16f);
             pauseButton = MakeButton(root, "Pause", "II", new Vector2(0.77f, 0.89f), new Vector2(0.94f, 0.97f), Pause);
             overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
             overlay.transform.SetParent(root, false);
@@ -162,15 +167,78 @@ namespace BlockDodge
             return obj;
         }
 
-        private void ShowOverlay(string title, string detail, string primary, UnityEngine.Events.UnityAction primaryAction, string secondary = null, UnityEngine.Events.UnityAction secondaryAction = null)
+        private void ShowOverlay(string title, string detail, string primary, UnityEngine.Events.UnityAction primaryAction, string secondary = null, UnityEngine.Events.UnityAction secondaryAction = null, string third = null, UnityEngine.Events.UnityAction thirdAction = null)
         {
-            foreach (Transform child in overlay.transform) Destroy(child.gameObject);
+            ClearOverlay();
+            overlay.GetComponent<UnityEngine.UI.Image>().color = new Color(0.04f, 0.12f, 0.10f, 0.88f);
             overlay.SetActive(true);
             var rect = overlay.GetComponent<RectTransform>();
             MakeText(rect, "Title", title, 68, new Vector2(0.08f, 0.59f), new Vector2(0.92f, 0.70f));
             MakeText(rect, "Detail", detail, 45, new Vector2(0.06f, 0.45f), new Vector2(0.94f, 0.59f));
             MakeButton(rect, "Primary", primary, new Vector2(0.20f, 0.34f), new Vector2(0.80f, 0.42f), primaryAction);
             if (secondary != null) MakeButton(rect, "Secondary", secondary, new Vector2(0.20f, 0.23f), new Vector2(0.80f, 0.31f), secondaryAction);
+            if (third != null) MakeButton(rect, "Third", third, new Vector2(0.20f, 0.12f), new Vector2(0.80f, 0.20f), thirdAction);
+        }
+
+        private void ClearOverlay()
+        {
+            foreach (Transform child in overlay.transform)
+            {
+                child.gameObject.SetActive(false);
+                Destroy(child.gameObject);
+            }
+        }
+
+        private int BestStars(int index)
+        {
+            return Mathf.Clamp(PlayerPrefs.GetInt("BlockDodge.Level." + (index + 1) + ".Stars", 0), 0, 3);
+        }
+
+        private bool IsUnlocked(int index)
+        {
+            return index == 0 || (index < levels.Length && BestStars(index - 1) > 0);
+        }
+
+        private void ShowMap()
+        {
+            Time.timeScale = 1f;
+            state = State.Map;
+            ClearInput();
+            foreach (var block in blocks) if (block != null) Destroy(block.gameObject);
+            blocks.Clear();
+            pauseButton.SetActive(false);
+            scoreText.gameObject.SetActive(false);
+            bonusText.gameObject.SetActive(false);
+            ClearOverlay();
+            overlay.GetComponent<UnityEngine.UI.Image>().color = new Color(0.04f, 0.12f, 0.10f, 1f);
+            overlay.SetActive(true);
+            RectTransform rect = overlay.GetComponent<RectTransform>();
+            MakeText(rect, "MapTitle", "JUNGLE MAP", 68, new Vector2(0.06f, 0.86f), new Vector2(0.94f, 0.95f));
+            MakeText(rect, "MapHint", "Choose an unlocked level", 34, new Vector2(0.05f, 0.78f), new Vector2(0.95f, 0.85f));
+            for (int index = 0; index < 10; index++)
+            {
+                int selectedLevel = index;
+                int row = index / 2;
+                int column = index % 2;
+                float left = column == 0 ? 0.09f : 0.53f;
+                float top = 0.76f - row * 0.12f;
+                bool available = index < levels.Length;
+                bool unlocked = available && IsUnlocked(index);
+                string label = available
+                    ? "LEVEL " + (index + 1) + "\n" + (unlocked ? BestStars(index) + " / 3 stars" : "LOCKED")
+                    : "LEVEL " + (index + 1) + "\nSOON";
+                GameObject button = MakeButton(rect, "Level " + (index + 1), label,
+                    new Vector2(left, top - 0.10f), new Vector2(left + 0.38f, top),
+                    () => SelectLevel(selectedLevel));
+                button.GetComponent<UnityEngine.UI.Button>().interactable = unlocked;
+            }
+        }
+
+        private void SelectLevel(int index)
+        {
+            if (index < 0 || index >= levels.Length || !IsUnlocked(index)) return;
+            levelIndex = index;
+            ShowReady();
         }
 
         private void UpdateSafeArea()
@@ -193,7 +261,10 @@ namespace BlockDodge
         {
             state = State.Ready;
             pauseButton.SetActive(false);
-            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: stay off edges\nand make a close dodge.", "PLAY", StartRun);
+            scoreText.gameObject.SetActive(true);
+            bonusText.gameObject.SetActive(true);
+            bonusText.text = "";
+            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: stay off edges\nand make a close dodge.", "PLAY", StartRun, "MAP", ShowMap);
             UpdateScore();
         }
 
@@ -203,6 +274,7 @@ namespace BlockDodge
             foreach (var block in blocks) if (block != null) Destroy(block.gameObject);
             blocks.Clear();
             score = 0; reachedEdge = false; closeDodges = 0; waveNumber = 0; UpdateScore();
+            bonusText.text = ""; bonusMessageTime = 0;
             playerBody.position = new Vector2(0, PlayerY);
             horizontalVelocity = 0; spawnTimer = 1f;
             ClearInput();
@@ -215,6 +287,11 @@ namespace BlockDodge
             if (safeArea != null && (Screen.safeArea != lastSafeArea || lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height)) UpdateSafeArea();
             if (state != State.Playing) return;
             ReadInput();
+            if (bonusMessageTime > 0)
+            {
+                bonusMessageTime -= Time.deltaTime;
+                if (bonusMessageTime <= 0) bonusText.text = "";
+            }
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0)
             {
@@ -297,8 +374,12 @@ namespace BlockDodge
         public void BlockPassed(FallingBlock block)
         {
             if (state != State.Playing) return;
-            float distance = Mathf.Abs(block.transform.position.x - playerBody.position.x);
-            if (distance >= 0.805f && distance <= 1.155f) closeDodges++;
+            if (block.NearMiss)
+            {
+                closeDodges++;
+                bonusText.text = "CLOSE DODGE!";
+                bonusMessageTime = 1.5f;
+            }
             score++;
             UpdateScore();
             if (score >= levels[levelIndex].target) CompleteLevel();
@@ -310,13 +391,18 @@ namespace BlockDodge
             ClearInput();
             pauseButton.SetActive(false);
             int stars = 1 + (reachedEdge ? 0 : 1) + (closeDodges > 0 ? 1 : 0);
+            if (stars > BestStars(levelIndex))
+            {
+                PlayerPrefs.SetInt("BlockDodge.Level." + (levelIndex + 1) + ".Stars", stars);
+                PlayerPrefs.Save();
+            }
             string detail = "Stars: " + stars + " / 3\n" +
                 (reachedEdge ? "-" : "+") + " Avoid the edges\n" +
                 (closeDodges > 0 ? "+" : "-") + " Make a close dodge";
             if (levelIndex + 1 < levels.Length)
-                ShowOverlay("LEVEL COMPLETE", detail, "NEXT LEVEL", NextLevel, "REPLAY", StartRun);
+                ShowOverlay("LEVEL COMPLETE", detail, "NEXT LEVEL", NextLevel, "REPLAY", StartRun, "MAP", ShowMap);
             else
-                ShowOverlay("JUNGLE COMPLETE", detail, "REPLAY", StartRun);
+                ShowOverlay("LEVEL 5 COMPLETE", detail + "\nMore levels coming soon!", "MAP", ShowMap, "REPLAY", StartRun);
         }
 
         private void NextLevel()
@@ -325,18 +411,19 @@ namespace BlockDodge
             ShowReady();
         }
         public void RemoveBlock(FallingBlock block) { blocks.Remove(block); Destroy(block.gameObject); }
+        public float PlayerX => playerBody.position.x;
         public bool IsPlaying => state == State.Playing;
         public void Hit()
         {
             if (state != State.Playing) return;
             state = State.GameOver; ClearInput(); pauseButton.SetActive(false);
-            ShowOverlay("GAME OVER", "Blocks dodged: " + score, "PLAY AGAIN", StartRun);
+            ShowOverlay("GAME OVER", "Blocks dodged: " + score, "PLAY AGAIN", StartRun, "MAP", ShowMap);
         }
         private void Pause()
         {
             if (state != State.Playing) return;
             state = State.Paused; ClearInput(); Time.timeScale = 0f; pauseButton.SetActive(false);
-            ShowOverlay("PAUSED", "Take your time.", "RESUME", Resume, "RESTART", StartRun);
+            ShowOverlay("PAUSED", "Take your time.", "RESUME", Resume, "RESTART", StartRun, "MAP", ShowMap);
         }
         private void Resume() { Time.timeScale = 1f; ClearInput(); state = State.Playing; overlay.SetActive(false); pauseButton.SetActive(true); }
         private void ClearInput() { controllingTouch = -1; mouseControls = false; moveDirection = 0; horizontalVelocity = 0; }
@@ -357,12 +444,16 @@ namespace BlockDodge
         private Rigidbody2D body;
         private bool scored;
         private float speed;
+        public bool NearMiss { get; private set; }
         public void Initialize(PrototypeGame owner, Rigidbody2D rigidbody, float fallSpeed) { game = owner; body = rigidbody; speed = fallSpeed; }
         private void FixedUpdate()
         {
             if (!game.IsPlaying) return;
             float nextY = body.position.y - speed * Time.fixedDeltaTime;
             body.MovePosition(new Vector2(body.position.x, nextY));
+            float horizontalDistance = Mathf.Abs(body.position.x - game.PlayerX);
+            if (Mathf.Abs(nextY - PrototypeGame.PlayerY) <= 0.805f && horizontalDistance >= 0.805f && horizontalDistance <= 1.4f)
+                NearMiss = true;
             if (!scored && nextY < -4.45f) { scored = true; game.BlockPassed(this); }
             if (nextY < -6.5f) game.RemoveBlock(this);
         }

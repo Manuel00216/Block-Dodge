@@ -3,7 +3,7 @@
 - [x] Phase 1 — Create the 2D project, mobile configuration, repository and documentation.
 - [x] Phase 2 — Prototype touch movement, obstacles, collision, score, pause and retry.
 - [ ] Phase 3 — Five sequential placeholder levels and prototype star results are implemented. Finish warning cues, fairness checks and device validation.
-- [ ] Phase 4 — Add the map and locally saved progression.
+- [x] Phase 4 — Jungle map and locally saved progression implemented; broader device validation continues in Phase 5.
 - [ ] Phase 5 — Validate safe paths, usability and balance with playtesting.
 - [ ] Phase 6 — Complete Jungle levels 6–10 and original presentation.
 - [ ] Phase 7 — Build Ice Land levels 11–20 and sliding obstacles.

@@ -4,7 +4,7 @@ A portrait mobile arcade game where players dodge falling obstacles and progress
 
 ## Status
 
-Five sequential prototype levels are available in `Assets/Scenes/Prototype.unity`. The level map, saved progression, final art and broader device testing are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
+Five playable prototype levels, a Jungle map and locally saved best stars are available in `Assets/Scenes/Prototype.unity`. Later levels, final art and broader device testing are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
 
 ## Getting started
 
