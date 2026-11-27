@@ -37,8 +37,12 @@ namespace BlockDodge
             new LevelDefinition(35, 1.00f, 4.0f, 2.1f)
         };
         private int levelIndex;
-        private bool reachedEdge;
-        private int closeDodges;
+        private const int GemGoal = 5;
+        private const int CheckpointGoal = 3;
+        private static readonly float[] GemPositions = { -1.5f, 0.9f, -0.8f, 1.8f, 0f };
+        private static readonly float[] CheckpointPositions = { 1.8f, -1.4f, 1.4f };
+        private int gemsCollected;
+        private int checkpointsCollected;
         private int waveNumber;
         private RectTransform safeArea;
         private Rect lastSafeArea;
@@ -50,9 +54,12 @@ namespace BlockDodge
         private State state;
         private Rigidbody2D playerBody;
         private Sprite square;
+        private Sprite gemSprite;
+        private Sprite checkpointSprite;
+        private GameObject gem;
+        private GameObject checkpoint;
         private TextMeshProUGUI scoreText;
         private TextMeshProUGUI bonusText;
-        private float bonusMessageTime;
         private GameObject overlay;
         private GameObject pauseButton;
         private float horizontalVelocity;
@@ -67,9 +74,31 @@ namespace BlockDodge
             Application.targetFrameRate = 60;
             Time.timeScale = 1f;
             square = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            gemSprite = CreateTokenSprite(true);
+            checkpointSprite = CreateTokenSprite(false);
             SetupWorld();
             SetupUI();
             ShowMap();
+        }
+
+        private Sprite CreateTokenSprite(bool diamond)
+        {
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Bilinear;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x + 0.5f - size / 2f) / (size / 2f);
+                    float dy = (y + 0.5f - size / 2f) / (size / 2f);
+                    float distance = diamond ? Mathf.Abs(dx) + Mathf.Abs(dy) : Mathf.Sqrt(dx * dx + dy * dy);
+                    bool visible = diamond ? distance <= 0.90f : distance <= 0.95f && distance >= 0.60f;
+                    texture.SetPixel(x, y, visible ? Color.white : Color.clear);
+                }
+            }
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
         private void SetupWorld()
@@ -129,7 +158,7 @@ namespace BlockDodge
             scoreText = MakeText(root, "Score", "DODGED  0", 52, new Vector2(0.06f, 0.88f), new Vector2(0.74f, 0.97f));
             scoreText.alignment = TextAlignmentOptions.MidlineLeft;
             scoreText.color = new Color(0.06f, 0.24f, 0.16f);
-            bonusText = MakeText(root, "Bonus", "", 34, new Vector2(0.06f, 0.81f), new Vector2(0.74f, 0.88f));
+            bonusText = MakeText(root, "Bonus", "", 38, new Vector2(0.06f, 0.76f), new Vector2(0.76f, 0.88f));
             bonusText.alignment = TextAlignmentOptions.MidlineLeft;
             bonusText.color = new Color(0.06f, 0.24f, 0.16f);
             pauseButton = MakeButton(root, "Pause", "II", new Vector2(0.77f, 0.89f), new Vector2(0.94f, 0.97f), Pause);
@@ -209,6 +238,7 @@ namespace BlockDodge
             pauseButton.SetActive(false);
             scoreText.gameObject.SetActive(false);
             bonusText.gameObject.SetActive(false);
+            ClearCollectibles();
             ClearOverlay();
             overlay.GetComponent<UnityEngine.UI.Image>().color = new Color(0.04f, 0.12f, 0.10f, 1f);
             overlay.SetActive(true);
@@ -255,6 +285,7 @@ namespace BlockDodge
         private void UpdateScore()
         {
             scoreText.text = "DODGED  " + score + " / " + levels[levelIndex].target;
+            bonusText.text = "GEMS " + gemsCollected + "/" + GemGoal + "\nCHECKPOINTS " + checkpointsCollected + "/" + CheckpointGoal;
         }
 
         private void ShowReady()
@@ -263,8 +294,7 @@ namespace BlockDodge
             pauseButton.SetActive(false);
             scoreText.gameObject.SetActive(true);
             bonusText.gameObject.SetActive(true);
-            bonusText.text = "";
-            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: stay off edges\nand make a close dodge.", "PLAY", StartRun, "MAP", ShowMap);
+            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: collect 5 gems\nand reach 3 checkpoints.", "PLAY", StartRun, "MAP", ShowMap);
             UpdateScore();
         }
 
@@ -273,8 +303,11 @@ namespace BlockDodge
             Time.timeScale = 1f;
             foreach (var block in blocks) if (block != null) Destroy(block.gameObject);
             blocks.Clear();
-            score = 0; reachedEdge = false; closeDodges = 0; waveNumber = 0; UpdateScore();
-            bonusText.text = ""; bonusMessageTime = 0;
+            score = 0; gemsCollected = 0; checkpointsCollected = 0; waveNumber = 0;
+            ClearCollectibles();
+            SpawnGem();
+            SpawnCheckpoint();
+            UpdateScore();
             playerBody.position = new Vector2(0, PlayerY);
             horizontalVelocity = 0; spawnTimer = 1f;
             ClearInput();
@@ -287,11 +320,6 @@ namespace BlockDodge
             if (safeArea != null && (Screen.safeArea != lastSafeArea || lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height)) UpdateSafeArea();
             if (state != State.Playing) return;
             ReadInput();
-            if (bonusMessageTime > 0)
-            {
-                bonusMessageTime -= Time.deltaTime;
-                if (bonusMessageTime <= 0) bonusText.text = "";
-            }
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0)
             {
@@ -305,8 +333,48 @@ namespace BlockDodge
             if (state != State.Playing) return;
             horizontalVelocity = Mathf.MoveTowards(horizontalVelocity, moveDirection * 5f, 35f * Time.fixedDeltaTime);
             float x = Mathf.Clamp(playerBody.position.x + horizontalVelocity * Time.fixedDeltaTime, -ArenaHalfWidth + PlayerHalfWidth, ArenaHalfWidth - PlayerHalfWidth);
-            if (Mathf.Abs(x) >= ArenaHalfWidth - PlayerHalfWidth - 0.01f) reachedEdge = true;
             playerBody.MovePosition(new Vector2(x, PlayerY));
+            CollectItems(x);
+        }
+
+        private void SpawnGem()
+        {
+            gem = MakeSprite("Gem", new Vector2(GemPositions[gemsCollected], PlayerY + 0.20f), new Vector2(0.60f, 0.60f), new Color(1f, 0.80f, 0.08f), 3);
+            gem.GetComponent<SpriteRenderer>().sprite = gemSprite;
+        }
+
+        private void SpawnCheckpoint()
+        {
+            checkpoint = MakeSprite("Checkpoint", new Vector2(CheckpointPositions[checkpointsCollected], -3.95f), new Vector2(0.85f, 0.45f), new Color(0.12f, 0.62f, 1f), 1);
+            checkpoint.GetComponent<SpriteRenderer>().sprite = checkpointSprite;
+        }
+
+        private void ClearCollectibles()
+        {
+            if (gem != null) Destroy(gem);
+            if (checkpoint != null) Destroy(checkpoint);
+            gem = null;
+            checkpoint = null;
+        }
+
+        private void CollectItems(float playerX)
+        {
+            if (gem != null && Mathf.Abs(playerX - gem.transform.position.x) <= 0.52f)
+            {
+                Destroy(gem);
+                gem = null;
+                gemsCollected++;
+                if (gemsCollected < GemGoal) SpawnGem();
+                UpdateScore();
+            }
+            if (checkpoint != null && Mathf.Abs(playerX - checkpoint.transform.position.x) <= 0.52f)
+            {
+                Destroy(checkpoint);
+                checkpoint = null;
+                checkpointsCollected++;
+                if (checkpointsCollected < CheckpointGoal) SpawnCheckpoint();
+                UpdateScore();
+            }
         }
 
         private void ReadInput()
@@ -374,12 +442,6 @@ namespace BlockDodge
         public void BlockPassed(FallingBlock block)
         {
             if (state != State.Playing) return;
-            if (block.NearMiss)
-            {
-                closeDodges++;
-                bonusText.text = "CLOSE DODGE!";
-                bonusMessageTime = 1.5f;
-            }
             score++;
             UpdateScore();
             if (score >= levels[levelIndex].target) CompleteLevel();
@@ -390,15 +452,15 @@ namespace BlockDodge
             state = State.Complete;
             ClearInput();
             pauseButton.SetActive(false);
-            int stars = 1 + (reachedEdge ? 0 : 1) + (closeDodges > 0 ? 1 : 0);
+            int stars = 1 + (gemsCollected >= GemGoal ? 1 : 0) + (checkpointsCollected >= CheckpointGoal ? 1 : 0);
             if (stars > BestStars(levelIndex))
             {
                 PlayerPrefs.SetInt("BlockDodge.Level." + (levelIndex + 1) + ".Stars", stars);
                 PlayerPrefs.Save();
             }
             string detail = "Stars: " + stars + " / 3\n" +
-                (reachedEdge ? "-" : "+") + " Avoid the edges\n" +
-                (closeDodges > 0 ? "+" : "-") + " Make a close dodge";
+                (gemsCollected >= GemGoal ? "+" : "-") + " Gems: " + gemsCollected + "/" + GemGoal + "\n" +
+                (checkpointsCollected >= CheckpointGoal ? "+" : "-") + " Checkpoints: " + checkpointsCollected + "/" + CheckpointGoal;
             if (levelIndex + 1 < levels.Length)
                 ShowOverlay("LEVEL COMPLETE", detail, "NEXT LEVEL", NextLevel, "REPLAY", StartRun, "MAP", ShowMap);
             else
@@ -411,7 +473,6 @@ namespace BlockDodge
             ShowReady();
         }
         public void RemoveBlock(FallingBlock block) { blocks.Remove(block); Destroy(block.gameObject); }
-        public float PlayerX => playerBody.position.x;
         public bool IsPlaying => state == State.Playing;
         public void Hit()
         {
@@ -429,7 +490,13 @@ namespace BlockDodge
         private void ClearInput() { controllingTouch = -1; mouseControls = false; moveDirection = 0; horizontalVelocity = 0; }
         private void OnApplicationPause(bool paused) { if (paused) Pause(); }
         private void OnApplicationFocus(bool focused) { if (!focused && Application.isPlaying) Pause(); }
-        private void OnDestroy() { Time.timeScale = 1f; if (square != null) Destroy(square); }
+        private void OnDestroy()
+        {
+            Time.timeScale = 1f;
+            if (square != null) Destroy(square);
+            if (gemSprite != null) { Destroy(gemSprite.texture); Destroy(gemSprite); }
+            if (checkpointSprite != null) { Destroy(checkpointSprite.texture); Destroy(checkpointSprite); }
+        }
     }
 
     public sealed class PlayerHit : MonoBehaviour
@@ -444,16 +511,12 @@ namespace BlockDodge
         private Rigidbody2D body;
         private bool scored;
         private float speed;
-        public bool NearMiss { get; private set; }
         public void Initialize(PrototypeGame owner, Rigidbody2D rigidbody, float fallSpeed) { game = owner; body = rigidbody; speed = fallSpeed; }
         private void FixedUpdate()
         {
             if (!game.IsPlaying) return;
             float nextY = body.position.y - speed * Time.fixedDeltaTime;
             body.MovePosition(new Vector2(body.position.x, nextY));
-            float horizontalDistance = Mathf.Abs(body.position.x - game.PlayerX);
-            if (Mathf.Abs(nextY - PrototypeGame.PlayerY) <= 0.805f && horizontalDistance >= 0.805f && horizontalDistance <= 1.4f)
-                NearMiss = true;
             if (!scored && nextY < -4.45f) { scored = true; game.BlockPassed(this); }
             if (nextY < -6.5f) game.RemoveBlock(this);
         }

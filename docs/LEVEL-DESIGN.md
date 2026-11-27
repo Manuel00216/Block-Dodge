@@ -1,6 +1,6 @@
 # Level design
 
-The first five Jungle levels are planned for the first playable milestone. Targets below are prototypes and need playtesting. Current bonus goals are to avoid the arena edges and make at least one close dodge. They need player testing and tuning.
+The first five Jungle levels are planned for the first playable milestone. Targets below are prototypes and need playtesting. Current bonus goals are to collect five gems and reach three ground checkpoints. Both appear one at a time and need device playtesting and safe-route tuning.
 
 | Level | World | Initial goal | Introduction | Status |
 | --- | --- | --- | --- | --- |
