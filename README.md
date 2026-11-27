@@ -4,7 +4,7 @@ A portrait mobile arcade game where players dodge falling obstacles and progress
 
 ## Status
 
-Core gameplay prototype available in `Assets/Scenes/Prototype.unity`. Level progression and mobile build verification are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
+Five sequential prototype levels are available in `Assets/Scenes/Prototype.unity`. The level map, saved progression, final art and broader device testing are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
 
 ## Getting started
 
@@ -20,3 +20,7 @@ Core gameplay prototype available in `Assets/Scenes/Prototype.unity`. Level prog
 ## Playing the prototype
 
 Open `Assets/Scenes/Prototype.unity` in Unity and press Play. Select Play in the game, then hold the left or right side of the screen. In the Editor, use A/D, the arrow keys, or hold the mouse on either side. Escape or the pause button opens the pause screen.
+
+## Android test build on Windows
+
+With Unity CLI and the Unity Android tools installed, run `./Tools/Build-Android.ps1` in PowerShell. The script uses an isolated offline Gradle home and the existing local Gradle dependency cache. The first online dependency download must have been completed previously. The debug-signed APK is written to `Builds/Android/BlockDodge.apk`. Unity must be closed before a batch build.

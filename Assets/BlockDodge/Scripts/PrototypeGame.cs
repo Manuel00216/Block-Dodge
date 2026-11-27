@@ -10,7 +10,39 @@ namespace BlockDodge
 {
     public sealed class PrototypeGame : MonoBehaviour
     {
-        private enum State { Ready, Playing, Paused, GameOver }
+        private enum State { Ready, Playing, Paused, GameOver, Complete }
+
+        [System.Serializable]
+        private sealed class LevelDefinition
+        {
+            public int target;
+            public float spawnInterval;
+            public float blockSpeed;
+            public float spawnRange;
+            public LevelDefinition(int target, float spawnInterval, float blockSpeed, float spawnRange)
+            {
+                this.target = target;
+                this.spawnInterval = spawnInterval;
+                this.blockSpeed = blockSpeed;
+                this.spawnRange = spawnRange;
+            }
+        }
+
+        [SerializeField] private LevelDefinition[] levels =
+        {
+            new LevelDefinition(20, 1.50f, 3.0f, 1.5f),
+            new LevelDefinition(25, 1.35f, 3.2f, 2.1f),
+            new LevelDefinition(30, 1.25f, 3.4f, 2.1f),
+            new LevelDefinition(30, 1.10f, 3.8f, 2.1f),
+            new LevelDefinition(35, 1.00f, 4.0f, 2.1f)
+        };
+        private int levelIndex;
+        private bool reachedEdge;
+        private int closeDodges;
+        private int waveNumber;
+        private RectTransform safeArea;
+        private Rect lastSafeArea;
+        private Vector2Int lastScreenSize;
         private const float PlayerY = -3.6f;
         private const float PlayerHalfWidth = 0.38f;
         private const float ArenaHalfWidth = 2.6f;
@@ -48,7 +80,7 @@ namespace BlockDodge
                 camera = cameraObject.AddComponent<Camera>();
             }
             camera.orthographic = true;
-            camera.orthographicSize = 6f;
+            camera.orthographicSize = Mathf.Max(6f, 3f / camera.aspect);
             camera.transform.position = new Vector3(0, 0, -10);
             camera.backgroundColor = new Color(0.73f, 0.89f, 0.83f);
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -86,9 +118,15 @@ namespace BlockDodge
             scaler.matchWidthOrHeight = 0.5f;
             if (FindFirstObjectByType<EventSystem>() == null)
                 new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
-            RectTransform root = canvasObject.GetComponent<RectTransform>();
-            scoreText = MakeText(root, "Score", "DODGED  0", 42, new Vector2(0.08f, 0.89f), new Vector2(0.68f, 0.97f));
+            RectTransform canvasRect = canvasObject.GetComponent<RectTransform>();
+            var safeAreaObject = new GameObject("Safe Area", typeof(RectTransform));
+            safeAreaObject.transform.SetParent(canvasRect, false);
+            safeArea = safeAreaObject.GetComponent<RectTransform>();
+            UpdateSafeArea();
+            RectTransform root = safeArea;
+            scoreText = MakeText(root, "Score", "DODGED  0", 52, new Vector2(0.06f, 0.88f), new Vector2(0.74f, 0.97f));
             scoreText.alignment = TextAlignmentOptions.MidlineLeft;
+            scoreText.color = new Color(0.06f, 0.24f, 0.16f);
             pauseButton = MakeButton(root, "Pause", "II", new Vector2(0.77f, 0.89f), new Vector2(0.94f, 0.97f), Pause);
             overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
             overlay.transform.SetParent(root, false);
@@ -130,16 +168,33 @@ namespace BlockDodge
             overlay.SetActive(true);
             var rect = overlay.GetComponent<RectTransform>();
             MakeText(rect, "Title", title, 68, new Vector2(0.08f, 0.59f), new Vector2(0.92f, 0.70f));
-            MakeText(rect, "Detail", detail, 32, new Vector2(0.10f, 0.47f), new Vector2(0.90f, 0.58f));
+            MakeText(rect, "Detail", detail, 45, new Vector2(0.06f, 0.45f), new Vector2(0.94f, 0.59f));
             MakeButton(rect, "Primary", primary, new Vector2(0.20f, 0.34f), new Vector2(0.80f, 0.42f), primaryAction);
             if (secondary != null) MakeButton(rect, "Secondary", secondary, new Vector2(0.20f, 0.23f), new Vector2(0.80f, 0.31f), secondaryAction);
+        }
+
+        private void UpdateSafeArea()
+        {
+            if (Screen.width <= 0 || Screen.height <= 0) return;
+            Rect area = Screen.safeArea;
+            safeArea.anchorMin = new Vector2(area.xMin / Screen.width, area.yMin / Screen.height);
+            safeArea.anchorMax = new Vector2(area.xMax / Screen.width, area.yMax / Screen.height);
+            safeArea.offsetMin = safeArea.offsetMax = Vector2.zero;
+            lastSafeArea = area;
+            lastScreenSize = new Vector2Int(Screen.width, Screen.height);
+        }
+
+        private void UpdateScore()
+        {
+            scoreText.text = "DODGED  " + score + " / " + levels[levelIndex].target;
         }
 
         private void ShowReady()
         {
             state = State.Ready;
             pauseButton.SetActive(false);
-            ShowOverlay("BLOCK DODGE", "Hold left or right to move.\nAvoid the falling blocks.", "PLAY", StartRun);
+            ShowOverlay("JUNGLE  " + (levelIndex + 1), "Dodge " + levels[levelIndex].target + " blocks.\nBonus stars: stay off edges\nand make a close dodge.", "PLAY", StartRun);
+            UpdateScore();
         }
 
         private void StartRun()
@@ -147,7 +202,7 @@ namespace BlockDodge
             Time.timeScale = 1f;
             foreach (var block in blocks) if (block != null) Destroy(block.gameObject);
             blocks.Clear();
-            score = 0; scoreText.text = "DODGED  0";
+            score = 0; reachedEdge = false; closeDodges = 0; waveNumber = 0; UpdateScore();
             playerBody.position = new Vector2(0, PlayerY);
             horizontalVelocity = 0; spawnTimer = 1f;
             ClearInput();
@@ -157,13 +212,14 @@ namespace BlockDodge
 
         private void Update()
         {
+            if (safeArea != null && (Screen.safeArea != lastSafeArea || lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height)) UpdateSafeArea();
             if (state != State.Playing) return;
             ReadInput();
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0)
             {
                 SpawnBlock();
-                spawnTimer = 1.25f;
+                spawnTimer = levels[levelIndex].spawnInterval;
             }
         }
 
@@ -172,6 +228,7 @@ namespace BlockDodge
             if (state != State.Playing) return;
             horizontalVelocity = Mathf.MoveTowards(horizontalVelocity, moveDirection * 5f, 35f * Time.fixedDeltaTime);
             float x = Mathf.Clamp(playerBody.position.x + horizontalVelocity * Time.fixedDeltaTime, -ArenaHalfWidth + PlayerHalfWidth, ArenaHalfWidth - PlayerHalfWidth);
+            if (Mathf.Abs(x) >= ArenaHalfWidth - PlayerHalfWidth - 0.01f) reachedEdge = true;
             playerBody.MovePosition(new Vector2(x, PlayerY));
         }
 
@@ -213,17 +270,60 @@ namespace BlockDodge
 
         private void SpawnBlock()
         {
-            var obj = MakeSprite("Block", new Vector2(Random.Range(-2.1f, 2.1f), 6.6f), new Vector2(0.85f, 0.85f), new Color(0.54f, 0.30f, 0.16f), 1);
+            waveNumber++;
+            if (levelIndex >= 2 && waveNumber % 4 == 0)
+            {
+                CreateBlock(-1.5f);
+                CreateBlock(1.5f);
+            }
+            else
+            {
+                CreateBlock(Random.Range(-levels[levelIndex].spawnRange, levels[levelIndex].spawnRange));
+            }
+        }
+
+        private void CreateBlock(float x)
+        {
+            var obj = MakeSprite("Block", new Vector2(x, 6.6f), new Vector2(0.85f, 0.85f), new Color(0.54f, 0.30f, 0.16f), 1);
             var body = obj.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Kinematic;
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             obj.AddComponent<BoxCollider2D>().isTrigger = true;
             var block = obj.AddComponent<FallingBlock>();
-            block.Initialize(this, body);
+            block.Initialize(this, body, levels[levelIndex].blockSpeed);
             blocks.Add(block);
         }
 
-        public void BlockPassed(FallingBlock block) { if (state == State.Playing) { score++; scoreText.text = "DODGED  " + score; } }
+        public void BlockPassed(FallingBlock block)
+        {
+            if (state != State.Playing) return;
+            float distance = Mathf.Abs(block.transform.position.x - playerBody.position.x);
+            if (distance >= 0.805f && distance <= 1.155f) closeDodges++;
+            score++;
+            UpdateScore();
+            if (score >= levels[levelIndex].target) CompleteLevel();
+        }
+
+        private void CompleteLevel()
+        {
+            state = State.Complete;
+            ClearInput();
+            pauseButton.SetActive(false);
+            int stars = 1 + (reachedEdge ? 0 : 1) + (closeDodges > 0 ? 1 : 0);
+            string detail = "Stars: " + stars + " / 3\n" +
+                (reachedEdge ? "-" : "+") + " Avoid the edges\n" +
+                (closeDodges > 0 ? "+" : "-") + " Make a close dodge";
+            if (levelIndex + 1 < levels.Length)
+                ShowOverlay("LEVEL COMPLETE", detail, "NEXT LEVEL", NextLevel, "REPLAY", StartRun);
+            else
+                ShowOverlay("JUNGLE COMPLETE", detail, "REPLAY", StartRun);
+        }
+
+        private void NextLevel()
+        {
+            levelIndex++;
+            ShowReady();
+        }
         public void RemoveBlock(FallingBlock block) { blocks.Remove(block); Destroy(block.gameObject); }
         public bool IsPlaying => state == State.Playing;
         public void Hit()
@@ -256,11 +356,12 @@ namespace BlockDodge
         private PrototypeGame game;
         private Rigidbody2D body;
         private bool scored;
-        public void Initialize(PrototypeGame owner, Rigidbody2D rigidbody) { game = owner; body = rigidbody; }
+        private float speed;
+        public void Initialize(PrototypeGame owner, Rigidbody2D rigidbody, float fallSpeed) { game = owner; body = rigidbody; speed = fallSpeed; }
         private void FixedUpdate()
         {
             if (!game.IsPlaying) return;
-            float nextY = body.position.y - 3.3f * Time.fixedDeltaTime;
+            float nextY = body.position.y - speed * Time.fixedDeltaTime;
             body.MovePosition(new Vector2(body.position.x, nextY));
             if (!scored && nextY < -4.45f) { scored = true; game.BlockPassed(this); }
             if (nextY < -6.5f) game.RemoveBlock(this);
