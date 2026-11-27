@@ -9,6 +9,6 @@
 - [ ] Phase 7 — Build Ice Land levels 11–20 and sliding obstacles.
 - [ ] Phase 8 — Build Desert levels 21–30 and Volcano levels 31–40.
 - [ ] Phase 9 — Add endless mode, difficulty-specific records and cosmetics.
-- [x] Phase 10 — Test mobile devices and prepare release builds.
+- [ ] Phase 10 — Test mobile devices and prepare release builds.
 
 First review milestone: five playable Jungle levels, map, stars and persisted progress. Device testing must confirm controls, fairness and save behavior before expanding to all 40 levels.

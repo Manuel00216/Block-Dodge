@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 4 — Jungle map and local best-star progression implemented; broader device testing remains.
+Phase 5 — Safety and gameplay polish in progress. The route-search and pulsing-checkpoint update is installed and has passed an initial phone playtest.
 
 ## Completed
 
@@ -13,13 +13,14 @@ Phase 4 — Jungle map and local best-star progression implemented; broader devi
 ## Next steps
 
 - Verify screen layouts, safe areas and performance on more Android devices and on an iPhone.
-- Test the five levels and star goals on devices. Add warning cues and validate safe routes before expanding the level set.
-- Verify the regular Android build retains the restored map progress after restart, then add warning cues and safe obstacle patterns.
+- Continue longer playtests of all five levels, especially safe routes, collectible timing and difficulty.
+- Decide and implement warning cues, then complete Jungle levels 6–10 and their presentation.
+- Verify saved progress after an app restart and preserve the existing phone progress.
 
 ## Known gaps
 
-- Visuals remain placeholders. Warning cues and fairness validation are not implemented. Levels 6–10 are marked as coming soon. Level definitions need tuning.
-- Obstacles use simple random positions; guaranteed reachable patterns are planned for a later phase.
+- Visuals remain placeholders. Warning cues are not implemented, levels 6–10 are marked as coming soon, and level difficulty needs tuning.
+- The route search is conservative and approximate. Initial tests passed, but longer playtests and broader device validation are needed.
 - Android offline builds succeeded using the project build script and an existing Gradle cache. Unity logs licensing handshake warnings despite reporting a successful build. iOS builds need macOS and Xcode and remain untested.
 - During initial project setup, one console error and four warnings appeared; their details were not captured. Later sessions reported none.
 
