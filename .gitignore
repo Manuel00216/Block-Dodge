@@ -1,0 +1,61 @@
+# ---- Unity generated folders ----
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Meta files must be tracked together with their assets
+!/[Aa]ssets/**/*.meta
+
+# Addressables / streaming assets build output
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# ---- IDE and generated project files ----
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.tmp
+
+# Unity generated meta files for the above
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Crash reports
+sysinfo.txt
+
+# ---- Build outputs ----
+*.apk
+*.aab
+*.unitypackage
+*.unitypackage.meta
+*.app
+
+# ---- Secrets: never commit signing keys ----
+*.keystore
+*.jks
+
+# ---- OS files ----
+.DS_Store
+Thumbs.db
+desktop.ini
