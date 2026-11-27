@@ -4,7 +4,7 @@ A portrait mobile arcade game where players dodge falling obstacles and progress
 
 ## Status
 
-Foundation in progress. Gameplay, level progression, and builds are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
+Core gameplay prototype available in `Assets/Scenes/Prototype.unity`. Level progression and mobile build verification are planned. See [progress](docs/PROGRESS.md) and [roadmap](docs/ROADMAP.md).
 
 ## Getting started
 
@@ -16,3 +16,7 @@ Foundation in progress. Gameplay, level progression, and builds are planned. See
 `Assets/` contains game assets, `Packages/` contains package configuration, `ProjectSettings/` contains shared Unity settings, and `docs/` contains the design and implementation plan.
 
 [Game design](docs/GAME-DESIGN.md) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/ROADMAP.md) · [Level design](docs/LEVEL-DESIGN.md) · [Testing](docs/TESTING.md) · [Decisions](docs/DECISIONS.md)
+
+## Playing the prototype
+
+Open `Assets/Scenes/Prototype.unity` in Unity and press Play. Select Play in the game, then hold the left or right side of the screen. In the Editor, use A/D, the arrow keys, or hold the mouse on either side. Escape or the pause button opens the pause screen.
